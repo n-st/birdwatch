@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+
+socket_paths = [
+        '/tmp/sock'
+        ]
+
+import os
+import socket
+import time
+import sys
+import re
+
+def recvline(sock):
+    response = b''
+    b = b''
+    while b != b'\n':
+        b = sock.recv(1)
+        response += b
+    return response.decode('utf-8')
+
+for socket_path in socket_paths:
+    if os.path.exists(socket_path):
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect(socket_path)
+        try:
+            preamble = recvline(client)
+            if not (preamble.startswith('0001 BIRD ') and preamble.endswith('ready.\n')):
+                print('Failed to connect to bird.')
+                sys.exit(1)
+            while True:
+                try:
+                    client.send(b'show protocols\n')
+                    response = []
+                    line = ''
+                    while not line.startswith('0000'):
+                        line = recvline(client)
+                        line = re.sub(r'^(\d{4})-', r'\1 ', line)
+                        response += [line]
+                    print(response)
+                    code = ''
+                    for line in response:
+                        parts = re.split('\s+', line)
+                        if parts[0]:
+                            code = parts[0]
+                        if code == '1002':
+                            proto_name, proto_type, proto_table, proto_state = parts[1:5]
+                            print(proto_name, proto_type, proto_table, proto_state)
+
+                    time.sleep(2)
+
+                except KeyboardInterrupt as k:
+                    print("Shutting down.")
+                    client.close()
+                    break
+        except BrokenPipeError:
+            print('Lost connection to bird.')
+            sys.exit(1)
+
+
+# bird up/down
+# reconf events
+# memory
+# protocol state
+
+# open socket
+# if socket closed: reopen
+
+# timer: every x seconds:
+#   query bird API
