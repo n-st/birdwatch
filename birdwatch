@@ -159,10 +159,10 @@ def watch_socket(socket_path, socket_alias):
             handler.inject_protocols(protocols)
             handler.get_changes()
 
-            if killer.kill_now:
-                return
-
-            time.sleep(CHECK_INTERVAL)
+            for i in range(CHECK_INTERVAL):
+                if killer.kill_now:
+                    return
+                time.sleep(1)
 
     except Exception as e:
         subject = 'Birdwatch %s %s: %s' % (HOSTNAME, socket_alias, 'connection error')
@@ -176,6 +176,7 @@ class GracefulKiller:
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
     def exit_gracefully(self,signum, frame):
+        print('Program now set to terminate after next cycle')
         self.kill_now = True
 
 killer = GracefulKiller()
