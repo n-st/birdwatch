@@ -22,7 +22,7 @@ INTERESTING_PROTOCOLS = ['BGP']
 CHECK_INTERVAL = 2
 HOSTNAME = socket.gethostname()
 MAIL_FROM = 'birdwatch@' + socket.getfqdn()
-MAIL_TO = 'root@voidptr.de'
+MAIL_TO = 'root'
 
 
 class Protocol:
