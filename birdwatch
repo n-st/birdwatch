@@ -9,6 +9,9 @@ import re
 import threading
 import signal
 
+from email.mime.text import MIMEText
+from subprocess import Popen, PIPE
+
 
 SOCKETS = {
         'IPv6': '/tmp/sock',
@@ -17,6 +20,8 @@ NOTIFICATION_DELAY = timedelta(seconds=5)
 INTERESTING_PROTOCOLS = ['BGP']
 CHECK_INTERVAL = 2
 HOSTNAME = socket.gethostname()
+MAIL_FROM = 'birdwatch@' + socket.getfqdn()
+MAIL_TO = 'root@voidptr.de'
 
 
 class Protocol:
@@ -76,8 +81,6 @@ class ProtocolHandler:
         if type(protocol) is not Protocol:
             raise TypeError
 
-        print('Injecting %s' % str(protocol))
-
         if protocol.type not in INTERESTING_PROTOCOLS:
             return
 
@@ -110,6 +113,14 @@ def recvline(sock):
 
 def send_mail(subject, body):
     print(subject, body)
+
+    msg = MIMEText(body)
+    msg["From"] = MAIL_FROM
+    msg["To"] = MAIL_TO
+    msg["Subject"] = subject
+    print('Sending mail with subject "%s"' % subject)
+    p = Popen(["sendmail", "-t", "-oi"], stdin=PIPE)
+    p.communicate(msg.as_string().encode('utf-8'))
 
 
 def watch_socket(socket_path, socket_alias):
