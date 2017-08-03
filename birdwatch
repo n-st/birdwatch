@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 
 from datetime import datetime, timedelta
-
-SOCKET_PATHS = [
-        '/tmp/sock'
-        ]
-NOTIFICATION_DELAY = timedelta(seconds=5)
-INTERESTING_PROTOCOLS = ['BGP']
-CHECK_INTERVAL = 2
-
 import os
 import socket
 import time
 import sys
 import re
+import threading
+import signal
+
+
+SOCKETS = {
+        'IPv6': '/tmp/sock',
+        }
+NOTIFICATION_DELAY = timedelta(seconds=5)
+INTERESTING_PROTOCOLS = ['BGP']
+CHECK_INTERVAL = 2
+HOSTNAME = socket.gethostname()
+
 
 class Protocol:
     def __init__(self, proto_name, proto_type, proto_table, proto_state, proto_comment):
@@ -28,26 +32,51 @@ class Protocol:
 
 class ProtocolHandler:
     last_state = {}
+    last_alert_state = {}
     alert_time = {}
     touched = []
+
+    def __init__(self, socket_alias):
+        self.socket_alias = socket_alias
 
     def new_session(self):
         self.touched = []
 
     def get_changes(self):
+        now_x = {}
+        body = []
+
         for protocol in self.last_state:
             if protocol not in self.touched:
-                print('Protocol %s has vanished.' % protocol)
+                body += ['Protocol %s has vanished.' % protocol]
+                if not 'vanished' in now_x:
+                    now_x['vanished'] = 1
+                else:
+                    now_x['vanished'] += 1
                 self.last_state[protocol.name] = 'absent'
                 self.alert_time[protocol.name] = datetime.now() + NOTIFICATION_DELAY
         for protocol in self.alert_time:
             if self.alert_time[protocol] and self.alert_time[protocol] <= datetime.now():
-                print('Protocol %s is now %s!' % (protocol, self.last_state[protocol]))
+                state = self.last_state[protocol]
+                if state == self.last_alert_state[protocol]:
+                    continue
+                self.last_alert_state[protocol] = state
+                body += ['Protocol %s is now %s!' % (protocol, state)]
+                if not state in now_x:
+                    now_x[state] = 1
+                else:
+                    now_x[state] += 1
                 self.alert_time[protocol] = None
+
+        if now_x:
+            subject = 'Birdwatch %s %s: %s' % (HOSTNAME, self.socket_alias, ', '.join(['%d %s' % (now_x[x], x) for x in now_x]))
+            send_mail(subject, '\n'.join(body))
 
     def inject_protocol(self, protocol):
         if type(protocol) is not Protocol:
             raise TypeError
+
+        print('Injecting %s' % str(protocol))
 
         if protocol.type not in INTERESTING_PROTOCOLS:
             return
@@ -56,6 +85,7 @@ class ProtocolHandler:
 
         if protocol.name not in self.last_state:
             self.last_state[protocol.name] = 'absent'
+            self.last_alert_state[protocol.name] = 'absent'
 
         if protocol.state != self.last_state[protocol.name]:
             # changed
@@ -77,45 +107,70 @@ def recvline(sock):
         response += b
     return response.decode('utf-8')
 
-for socket_path in SOCKET_PATHS:
-    if os.path.exists(socket_path):
-        handler = ProtocolHandler()
+
+def send_mail(subject, body):
+    print(subject, body)
+
+
+def watch_socket(socket_path, socket_alias):
+    try:
+        handler = ProtocolHandler(socket_alias)
 
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client.connect(socket_path)
-        try:
-            preamble = recvline(client)
-            if not (preamble.startswith('0001 BIRD ') and preamble.endswith('ready.\n')):
-                print('Failed to connect to bird.')
-                sys.exit(1)
-
-            while True:
-                client.send(b'show protocols\n')
-                response = []
-                line = ''
-                while not line.startswith('0000'):
-                    line = recvline(client)
-                    line = re.sub(r'^(\d{4})-', r'\1 ', line)
-                    response += [line]
-
-                protocols = []
-
-                code = ''
-                for line in response:
-                    parts = re.split('\s+', line)
-                    if parts[0]:
-                        code = parts[0]
-                    if code == '1002':
-                        proto_name, proto_type, proto_table, proto_state, proto_comment = parts[1:6]
-                        proto = Protocol(proto_name, proto_type, proto_table, proto_state, proto_comment)
-                        protocols.append(proto)
-
-                handler.new_session()
-                handler.inject_protocols(protocols)
-                handler.get_changes()
-
-                time.sleep(2)
-
-        except BrokenPipeError:
-            print('Lost connection to bird.')
+        preamble = recvline(client)
+        if not (preamble.startswith('0001 BIRD ') and preamble.endswith('ready.\n')):
+            print('Failed to connect to bird.')
             sys.exit(1)
+
+        while True:
+            client.send(b'show protocols\n')
+            response = []
+            line = ''
+            while not line.startswith('0000'):
+                line = recvline(client)
+                line = re.sub(r'^(\d{4})-', r'\1 ', line)
+                response += [line]
+
+            protocols = []
+
+            code = ''
+            for line in response:
+                parts = re.split('\s+', line)
+                if parts[0]:
+                    code = parts[0]
+                if code == '1002':
+                    proto_name, proto_type, proto_table, proto_state, proto_comment = parts[1:6]
+                    proto = Protocol(proto_name, proto_type, proto_table, proto_state, proto_comment)
+                    protocols.append(proto)
+
+            handler.new_session()
+            handler.inject_protocols(protocols)
+            handler.get_changes()
+
+            if killer.kill_now:
+                return
+
+            time.sleep(CHECK_INTERVAL)
+
+    except Exception as e:
+        subject = 'Birdwatch %s %s: %s' % (HOSTNAME, socket_alias, 'connection error')
+        send_mail(subject, 'Lost connection to bird: %s' % str(e))
+        sys.exit(1)
+
+class GracefulKiller:
+    kill_now = False
+    def __init__(self):
+        signal.signal(signal.SIGINT, self.exit_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+    def exit_gracefully(self,signum, frame):
+        self.kill_now = True
+
+killer = GracefulKiller()
+
+for sock in SOCKETS.items():
+    print(sock)
+    t = threading.Thread(target=watch_socket, args=(sock[1], sock[0]))
+    t.daemon = False
+    t.start()
