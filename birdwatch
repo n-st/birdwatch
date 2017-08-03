@@ -1,14 +1,73 @@
 #!/usr/bin/env python3
 
-socket_paths = [
+from datetime import datetime, timedelta
+
+SOCKET_PATHS = [
         '/tmp/sock'
         ]
+NOTIFICATION_DELAY = timedelta(seconds=5)
+INTERESTING_PROTOCOLS = ['BGP']
+CHECK_INTERVAL = 2
 
 import os
 import socket
 import time
 import sys
 import re
+
+class Protocol:
+    def __init__(self, proto_name, proto_type, proto_table, proto_state, proto_comment):
+        self.name    = proto_name
+        self.type    = proto_type
+        self.table   = proto_table
+        self.state   = proto_state
+        self.comment = proto_comment
+
+    def __str__(self):
+        return 'Protocol<%s:%s>:%s' % (self.type, self.name, self.state)
+
+class ProtocolHandler:
+    last_state = {}
+    alert_time = {}
+    touched = []
+
+    def new_session(self):
+        self.touched = []
+
+    def get_changes(self):
+        for protocol in self.last_state:
+            if protocol not in self.touched:
+                print('Protocol %s has vanished.' % protocol)
+                self.last_state[protocol.name] = 'absent'
+                self.alert_time[protocol.name] = datetime.now() + NOTIFICATION_DELAY
+        for protocol in self.alert_time:
+            if self.alert_time[protocol] and self.alert_time[protocol] <= datetime.now():
+                print('Protocol %s is now %s!' % (protocol, self.last_state[protocol]))
+                self.alert_time[protocol] = None
+
+    def inject_protocol(self, protocol):
+        if type(protocol) is not Protocol:
+            raise TypeError
+
+        if protocol.type not in INTERESTING_PROTOCOLS:
+            return
+
+        self.touched.append(protocol.name)
+
+        if protocol.name not in self.last_state:
+            self.last_state[protocol.name] = 'absent'
+
+        if protocol.state != self.last_state[protocol.name]:
+            # changed
+            self.last_state[protocol.name] = protocol.state
+            self.alert_time[protocol.name] = datetime.now() + NOTIFICATION_DELAY
+
+    def inject_protocols(self, protocols):
+        if type(protocols) is not list:
+            raise TypeError
+        
+        for protocol in protocols:
+            self.inject_protocol(protocol)
 
 def recvline(sock):
     response = b''
@@ -18,8 +77,10 @@ def recvline(sock):
         response += b
     return response.decode('utf-8')
 
-for socket_path in socket_paths:
+for socket_path in SOCKET_PATHS:
     if os.path.exists(socket_path):
+        handler = ProtocolHandler()
+
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client.connect(socket_path)
         try:
@@ -27,43 +88,34 @@ for socket_path in socket_paths:
             if not (preamble.startswith('0001 BIRD ') and preamble.endswith('ready.\n')):
                 print('Failed to connect to bird.')
                 sys.exit(1)
+
             while True:
-                try:
-                    client.send(b'show protocols\n')
-                    response = []
-                    line = ''
-                    while not line.startswith('0000'):
-                        line = recvline(client)
-                        line = re.sub(r'^(\d{4})-', r'\1 ', line)
-                        response += [line]
-                    print(response)
-                    code = ''
-                    for line in response:
-                        parts = re.split('\s+', line)
-                        if parts[0]:
-                            code = parts[0]
-                        if code == '1002':
-                            proto_name, proto_type, proto_table, proto_state = parts[1:5]
-                            print(proto_name, proto_type, proto_table, proto_state)
+                client.send(b'show protocols\n')
+                response = []
+                line = ''
+                while not line.startswith('0000'):
+                    line = recvline(client)
+                    line = re.sub(r'^(\d{4})-', r'\1 ', line)
+                    response += [line]
 
-                    time.sleep(2)
+                protocols = []
 
-                except KeyboardInterrupt as k:
-                    print("Shutting down.")
-                    client.close()
-                    break
+                code = ''
+                for line in response:
+                    parts = re.split('\s+', line)
+                    if parts[0]:
+                        code = parts[0]
+                    if code == '1002':
+                        proto_name, proto_type, proto_table, proto_state, proto_comment = parts[1:6]
+                        proto = Protocol(proto_name, proto_type, proto_table, proto_state, proto_comment)
+                        protocols.append(proto)
+
+                handler.new_session()
+                handler.inject_protocols(protocols)
+                handler.get_changes()
+
+                time.sleep(2)
+
         except BrokenPipeError:
             print('Lost connection to bird.')
             sys.exit(1)
-
-
-# bird up/down
-# reconf events
-# memory
-# protocol state
-
-# open socket
-# if socket closed: reopen
-
-# timer: every x seconds:
-#   query bird API
