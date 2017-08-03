@@ -14,23 +14,25 @@ from subprocess import Popen, PIPE
 
 
 SOCKETS = {
+        'IPv4': '/var/run/bird/bird.ctl',
         'IPv6': '/var/run/bird/bird6.ctl',
         }
-NOTIFICATION_DELAY = timedelta(seconds=120)
+NOTIFICATION_DELAY = timedelta(seconds=10)
 INTERESTING_PROTOCOLS = ['BGP']
-CHECK_INTERVAL = 20
+CHECK_INTERVAL = 2
 HOSTNAME = socket.gethostname()
 MAIL_FROM = 'birdwatch@' + socket.getfqdn()
 MAIL_TO = 'root@voidptr.de'
 
 
 class Protocol:
-    def __init__(self, proto_name, proto_type, proto_table, proto_state, proto_comment):
-        self.name    = proto_name
-        self.type    = proto_type
-        self.table   = proto_table
-        self.state   = proto_state
-        self.comment = proto_comment
+    def __init__(self, proto_name, proto_type, proto_table, proto_state, proto_since, proto_info):
+        self.name   = proto_name
+        self.type   = proto_type
+        self.table  = proto_table
+        self.state  = proto_state
+        self.since  = proto_since
+        self.info   = proto_info
 
     def __str__(self):
         return 'Protocol<%s:%s>:%s' % (self.type, self.name, self.state)
@@ -39,6 +41,7 @@ class ProtocolHandler:
     last_state = {}
     last_alert_state = {}
     alert_time = {}
+    protocol_log = {}
     touched = []
 
     def __init__(self, socket_alias):
@@ -62,11 +65,13 @@ class ProtocolHandler:
                 self.alert_time[protocol.name] = datetime.now() + NOTIFICATION_DELAY
         for protocol in self.alert_time:
             if self.alert_time[protocol] and self.alert_time[protocol] <= datetime.now():
+                proto = self.protocol_log[protocol]
                 state = self.last_state[protocol]
                 if state == self.last_alert_state[protocol]:
+                    print('Would issue alert for protocol %s, but it has returned to previous state (%s). Clearing alert flag.' % (protocol, state))
                     continue
                 self.last_alert_state[protocol] = state
-                body += ['Protocol %s is now %s!' % (protocol, state)]
+                body += ['%-15s%-15s%-15s%-15s%-15s' % (proto.name, proto.type, proto.state, proto.since, proto.info)]
                 if not state in now_x:
                     now_x[state] = 1
                 else:
@@ -74,6 +79,7 @@ class ProtocolHandler:
                 self.alert_time[protocol] = None
 
         if now_x:
+            body = ['%-15s%-15s%-15s%-15s%-15s' % ('NAME', 'PROTOCOL', 'STATE', 'SINCE', 'INFO')] + body
             subject = 'Birdwatch %s %s: %s' % (HOSTNAME, self.socket_alias, ', '.join(['%d %s' % (now_x[x], x) for x in now_x]))
             send_mail(subject, '\n'.join(body))
 
@@ -86,6 +92,8 @@ class ProtocolHandler:
 
         self.touched.append(protocol.name)
 
+        self.protocol_log[protocol.name] = protocol
+
         if protocol.name not in self.last_state:
             self.last_state[protocol.name] = 'absent'
             self.last_alert_state[protocol.name] = 'absent'
@@ -94,6 +102,7 @@ class ProtocolHandler:
             # changed
             self.last_state[protocol.name] = protocol.state
             self.alert_time[protocol.name] = datetime.now() + NOTIFICATION_DELAY
+            print('Protocol %s has changed from %s to %s' % (protocol.name, self.last_state[protocol.name], protocol.state))
 
     def inject_protocols(self, protocols):
         if type(protocols) is not list:
@@ -112,8 +121,6 @@ def recvline(sock):
 
 
 def send_mail(subject, body):
-    print(subject, body)
-
     msg = MIMEText(body)
     msg["From"] = MAIL_FROM
     msg["To"] = MAIL_TO
@@ -151,8 +158,8 @@ def watch_socket(socket_path, socket_alias):
                 if parts[0]:
                     code = parts[0]
                 if code == '1002':
-                    proto_name, proto_type, proto_table, proto_state, proto_comment = parts[1:6]
-                    proto = Protocol(proto_name, proto_type, proto_table, proto_state, proto_comment)
+                    proto_name, proto_type, proto_table, proto_state, proto_since, proto_info = parts[1:7]
+                    proto = Protocol(proto_name, proto_type, proto_table, proto_state, proto_since, proto_info)
                     protocols.append(proto)
 
             handler.new_session()
