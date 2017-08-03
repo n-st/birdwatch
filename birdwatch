@@ -61,8 +61,8 @@ class ProtocolHandler:
                     now_x['vanished'] = 1
                 else:
                     now_x['vanished'] += 1
-                self.last_state[protocol.name] = 'absent'
-                self.alert_time[protocol.name] = datetime.now() + NOTIFICATION_DELAY
+                self.last_state[protocol] = 'absent'
+                self.alert_time[protocol] = datetime.now() + NOTIFICATION_DELAY
         for protocol in self.alert_time:
             if self.alert_time[protocol] and self.alert_time[protocol] <= datetime.now():
                 proto = self.protocol_log[protocol]
