@@ -100,9 +100,9 @@ class ProtocolHandler:
 
         if protocol.state != self.last_state[protocol.name]:
             # changed
+            print('Protocol %s has changed from %s to %s' % (protocol.name, self.last_state[protocol.name], protocol.state))
             self.last_state[protocol.name] = protocol.state
             self.alert_time[protocol.name] = datetime.now() + NOTIFICATION_DELAY
-            print('Protocol %s has changed from %s to %s' % (protocol.name, self.last_state[protocol.name], protocol.state))
 
     def inject_protocols(self, protocols):
         if type(protocols) is not list:
