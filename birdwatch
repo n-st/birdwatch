@@ -17,9 +17,9 @@ SOCKETS = {
         'IPv4': '/var/run/bird/bird.ctl',
         'IPv6': '/var/run/bird/bird6.ctl',
         }
-NOTIFICATION_DELAY = timedelta(seconds=10)
+NOTIFICATION_DELAY = timedelta(seconds=120)
 INTERESTING_PROTOCOLS = ['BGP']
-CHECK_INTERVAL = 2
+CHECK_INTERVAL = 20
 HOSTNAME = socket.gethostname()
 MAIL_FROM = 'birdwatch@' + socket.getfqdn()
 MAIL_TO = 'root'
