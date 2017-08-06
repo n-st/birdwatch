@@ -158,13 +158,14 @@ def watch_socket(socket_path, socket_alias, sigterm_handler):
 
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client.connect(socket_path)
+
         preamble = recvline(client)
         if not (preamble.startswith('0001 BIRD ') and preamble.endswith('ready.\n')):
-            print('Failed to connect to bird.')
-            sys.exit(1)
+            raise Exception("Bird didn't send correct preamble on socket.")
 
         while True:
             client.send(b'show protocols\n')
+
             response = []
             line = ''
             while not line.startswith('0000'):
