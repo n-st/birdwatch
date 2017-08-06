@@ -152,7 +152,7 @@ def send_mail(subject, body):
     p.communicate(msg.as_string().encode('utf-8'))
 
 
-def watch_socket(socket_path, socket_alias):
+def watch_socket(socket_path, socket_alias, sigterm_handler):
     try:
         handler = ProtocolHandler(socket_alias)
 
@@ -189,7 +189,7 @@ def watch_socket(socket_path, socket_alias):
             handler.get_changes()
 
             for i in range(CHECK_INTERVAL):
-                if killer.kill_now:
+                if sigterm_handler.kill_now:
                     return
                 time.sleep(1)
 
@@ -211,10 +211,15 @@ class GracefulKiller:
         self.kill_now = True
 
 
-killer = GracefulKiller()
+def main():
+    killer = GracefulKiller()
 
-for sock in SOCKETS.items():
-    print(sock)
-    t = threading.Thread(target=watch_socket, args=(sock[1], sock[0]))
-    t.daemon = False
-    t.start()
+    for sock in SOCKETS.items():
+        print(sock)
+        t = threading.Thread(target=watch_socket, args=(sock[1], sock[0], killer))
+        t.daemon = False
+        t.start()
+
+
+if __name__ == "__main__":
+    main()
