@@ -50,46 +50,6 @@ class ProtocolHandler:
     def new_session(self):
         self.touched = []
 
-    def get_changes(self):
-        now_x = {}
-        body = []
-
-        for protocol in self.last_state:
-            if protocol not in self.touched:
-                body += ['Protocol %s has vanished.' % protocol]
-                if 'vanished' not in now_x:
-                    now_x['vanished'] = 1
-                else:
-                    now_x['vanished'] += 1
-                self.last_state[protocol] = 'absent'
-                self.alert_time[protocol] = datetime.now() + NOTIFICATION_DELAY
-        for protocol in self.alert_time:
-            if self.alert_time[protocol] and self.alert_time[protocol] <= datetime.now():
-                proto = self.protocol_log[protocol]
-                state = self.last_state[protocol]
-                if state == self.last_alert_state[protocol]:
-                    print(
-                        'Would issue alert for protocol %s, but it has returned to previous state (%s).' +
-                        'Clearing alert flag.' % (protocol, state)
-                    )
-                    continue
-                self.last_alert_state[protocol] = state
-                body += ['%-15s%-15s%-15s%-15s%-15s' % (proto.name, proto.type, proto.state, proto.since, proto.info)]
-                if state not in now_x:
-                    now_x[state] = 1
-                else:
-                    now_x[state] += 1
-                self.alert_time[protocol] = None
-
-        if now_x:
-            body = ['%-15s%-15s%-15s%-15s%-15s' % ('NAME', 'PROTOCOL', 'STATE', 'SINCE', 'INFO')] + body
-            subject = 'Birdwatch %s %s: %s' % (
-                HOSTNAME,
-                self.socket_alias,
-                ', '.join(['%d %s' % (now_x[x], x) for x in now_x])
-            )
-            send_mail(subject, '\n'.join(body))
-
     def inject_protocol(self, protocol):
         if type(protocol) is not Protocol:
             raise TypeError
@@ -123,6 +83,54 @@ class ProtocolHandler:
 
         for protocol in protocols:
             self.inject_protocol(protocol)
+
+    def get_changes(self):
+        now_x = {}
+        body = []
+
+        for protocol in self.last_state:
+            if protocol not in self.touched:
+                # Protocol has vanished. Schedule an alert.
+                self.last_state[protocol] = 'vanished'
+                del self.protocol_log[protocol]
+                self.alert_time[protocol] = datetime.now() + NOTIFICATION_DELAY
+
+        for protocol in self.alert_time:
+            if self.alert_time[protocol] and self.alert_time[protocol] <= datetime.now():
+                self.alert_time[protocol] = None
+
+                state = self.last_state[protocol]
+                if state == self.last_alert_state[protocol]:
+                    print(
+                        'Would issue alert for protocol %s, but it has returned to previous state (%s).' +
+                        'Clearing alert flag.' % (protocol, state)
+                    )
+                    continue
+
+                self.last_alert_state[protocol] = state
+
+                if state == 'vanished':
+                    body += ['Protocol %s has vanished.' % protocol]
+                else:
+                    proto = self.protocol_log[protocol]
+                    body += ['%-15s%-15s%-15s%-15s%-15s'
+                             % (proto.name, proto.type, proto.state, proto.since, proto.info)]
+
+                if state not in now_x:
+                    now_x[state] = 1
+                else:
+                    now_x[state] += 1
+
+        if now_x:
+            body = ['%-15s%-15s%-15s%-15s%-15s'
+                    % ('NAME', 'PROTOCOL', 'STATE', 'SINCE', 'INFO')] \
+                   + body
+            subject = 'Birdwatch %s %s: %s' % (
+                HOSTNAME,
+                self.socket_alias,
+                ', '.join(['%d %s' % (now_x[x], x) for x in now_x])
+            )
+            send_mail(subject, '\n'.join(body))
 
 
 def recvline(sock):
