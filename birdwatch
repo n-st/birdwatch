@@ -38,14 +38,13 @@ class Protocol:
 
 
 class ProtocolHandler:
-    last_state = {}
-    last_alert_state = {}
-    alert_time = {}
-    protocol_log = {}
-    touched = []
-
     def __init__(self, socket_alias):
         self.socket_alias = socket_alias
+        self.last_state = {}
+        self.last_alert_state = {}
+        self.alert_time = {}
+        self.protocol_log = {}
+        self.touched = []
 
     def new_session(self):
         self.touched = []
