@@ -68,7 +68,8 @@ class ProtocolHandler:
         if protocol.state != self.last_state[protocol.name]:
             # changed
             print(
-                'Protocol %s has changed from %s to %s' % (
+                '%s: Protocol %s has changed from %s to %s' % (
+                    self.socket_alias,
                     protocol.name,
                     self.last_state[protocol.name],
                     protocol.state
@@ -102,8 +103,8 @@ class ProtocolHandler:
                 state = self.last_state[protocol]
                 if state == self.last_alert_state[protocol]:
                     print(
-                        'Would issue alert for protocol %s, but it has returned to previous state (%s).' +
-                        'Clearing alert flag.' % (protocol, state)
+                        '%s: Would issue alert for protocol %s, but it has returned to previous state (%s).' +
+                        'Clearing alert flag.' % (self.socket_alias, protocol, state)
                     )
                     continue
 
