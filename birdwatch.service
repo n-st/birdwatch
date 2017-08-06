@@ -1,0 +1,15 @@
+[Unit]
+Description=Bird internet routing daemon monitor
+Requires=bird.service
+Requires=bird6.service
+After=bird.service
+After=bird6.service
+
+[Service]
+Type=simple
+ExecStart=/opt/birdwatch/birdwatch
+KillMode=mixed
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
