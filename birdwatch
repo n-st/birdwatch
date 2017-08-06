@@ -195,9 +195,9 @@ def watch_socket(socket_path, socket_alias, sigterm_handler):
                 time.sleep(1)
 
     except Exception as e:
+        import traceback
         subject = 'Birdwatch %s %s: %s' % (HOSTNAME, socket_alias, 'connection error')
-        send_mail(subject, 'Lost connection to bird: %s' % str(e))
-        sys.exit(1)
+        send_mail(subject, 'Lost connection to bird:\n%s' % traceback.format_exc())
 
 
 class GracefulKiller:
