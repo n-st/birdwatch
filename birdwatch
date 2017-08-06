@@ -12,11 +12,10 @@ import signal
 from email.mime.text import MIMEText
 from subprocess import Popen, PIPE
 
-
 SOCKETS = {
-        'IPv4': '/var/run/bird/bird.ctl',
-        'IPv6': '/var/run/bird/bird6.ctl',
-        }
+    'IPv4': '/var/run/bird/bird.ctl',
+    'IPv6': '/var/run/bird/bird6.ctl',
+}
 NOTIFICATION_DELAY = timedelta(seconds=120)
 INTERESTING_PROTOCOLS = ['BGP']
 CHECK_INTERVAL = 20
@@ -27,15 +26,16 @@ MAIL_TO = 'root'
 
 class Protocol:
     def __init__(self, proto_name, proto_type, proto_table, proto_state, proto_since, proto_info):
-        self.name   = proto_name
-        self.type   = proto_type
-        self.table  = proto_table
-        self.state  = proto_state
-        self.since  = proto_since
-        self.info   = proto_info
+        self.name = proto_name
+        self.type = proto_type
+        self.table = proto_table
+        self.state = proto_state
+        self.since = proto_since
+        self.info = proto_info
 
     def __str__(self):
         return 'Protocol<%s:%s>:%s' % (self.type, self.name, self.state)
+
 
 class ProtocolHandler:
     last_state = {}
@@ -57,7 +57,7 @@ class ProtocolHandler:
         for protocol in self.last_state:
             if protocol not in self.touched:
                 body += ['Protocol %s has vanished.' % protocol]
-                if not 'vanished' in now_x:
+                if 'vanished' not in now_x:
                     now_x['vanished'] = 1
                 else:
                     now_x['vanished'] += 1
@@ -68,11 +68,14 @@ class ProtocolHandler:
                 proto = self.protocol_log[protocol]
                 state = self.last_state[protocol]
                 if state == self.last_alert_state[protocol]:
-                    print('Would issue alert for protocol %s, but it has returned to previous state (%s). Clearing alert flag.' % (protocol, state))
+                    print(
+                        'Would issue alert for protocol %s, but it has returned to previous state (%s).' +
+                        'Clearing alert flag.' % (protocol, state)
+                    )
                     continue
                 self.last_alert_state[protocol] = state
                 body += ['%-15s%-15s%-15s%-15s%-15s' % (proto.name, proto.type, proto.state, proto.since, proto.info)]
-                if not state in now_x:
+                if state not in now_x:
                     now_x[state] = 1
                 else:
                     now_x[state] += 1
@@ -80,7 +83,11 @@ class ProtocolHandler:
 
         if now_x:
             body = ['%-15s%-15s%-15s%-15s%-15s' % ('NAME', 'PROTOCOL', 'STATE', 'SINCE', 'INFO')] + body
-            subject = 'Birdwatch %s %s: %s' % (HOSTNAME, self.socket_alias, ', '.join(['%d %s' % (now_x[x], x) for x in now_x]))
+            subject = 'Birdwatch %s %s: %s' % (
+                HOSTNAME,
+                self.socket_alias,
+                ', '.join(['%d %s' % (now_x[x], x) for x in now_x])
+            )
             send_mail(subject, '\n'.join(body))
 
     def inject_protocol(self, protocol):
@@ -100,16 +107,23 @@ class ProtocolHandler:
 
         if protocol.state != self.last_state[protocol.name]:
             # changed
-            print('Protocol %s has changed from %s to %s' % (protocol.name, self.last_state[protocol.name], protocol.state))
+            print(
+                'Protocol %s has changed from %s to %s' % (
+                    protocol.name,
+                    self.last_state[protocol.name],
+                    protocol.state
+                )
+            )
             self.last_state[protocol.name] = protocol.state
             self.alert_time[protocol.name] = datetime.now() + NOTIFICATION_DELAY
 
     def inject_protocols(self, protocols):
         if type(protocols) is not list:
             raise TypeError
-        
+
         for protocol in protocols:
             self.inject_protocol(protocol)
+
 
 def recvline(sock):
     response = b''
@@ -176,15 +190,18 @@ def watch_socket(socket_path, socket_alias):
         send_mail(subject, 'Lost connection to bird: %s' % str(e))
         sys.exit(1)
 
+
 class GracefulKiller:
     kill_now = False
+
     def __init__(self):
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
-    def exit_gracefully(self,signum, frame):
+    def exit_gracefully(self, signum, frame):
         print('Program now set to terminate after next cycle')
         self.kill_now = True
+
 
 killer = GracefulKiller()
 
