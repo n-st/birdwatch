@@ -102,8 +102,7 @@ class ProtocolHandler:
                 state = self.last_state[protocol]
                 if state == self.last_alert_state[protocol]:
                     print(
-                        '%s: Would issue alert for protocol %s, but it has returned to previous state (%s).' +
-                        'Clearing alert flag.' % (self.socket_alias, protocol, state)
+                        '%s: Would issue alert for protocol %s, but it has returned to previous state (%s). Clearing alert flag.' % (self.socket_alias, protocol, state)
                     )
                     continue
 
@@ -196,7 +195,7 @@ def watch_socket(socket_path, socket_alias, sigterm_handler):
 
     except Exception as e:
         import traceback
-        subject = 'Birdwatch %s %s: %s' % (HOSTNAME, socket_alias, 'connection error')
+        subject = 'Birdwatch %s %s: %s' % (HOSTNAME, socket_alias, 'error')
         send_mail(subject, 'Lost connection to bird:\n%s' % traceback.format_exc())
 
 
