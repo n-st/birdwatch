@@ -49,6 +49,7 @@ class ProtocolHandler:
     def update(self, protocols):
         self.touched = []
         self.inject_protocols(protocols)
+        self.find_vanished()
         self.alert_for_changes()
 
     def inject_protocol(self, protocol):
@@ -86,16 +87,22 @@ class ProtocolHandler:
         for protocol in protocols:
             self.inject_protocol(protocol)
 
+    def purge_protocol(self, protocol_name):
+        del self.last_state[protocol_name]
+        del self.last_alert_state[protocol_name]
+        del self.alert_time[protocol_name]
+        del self.protocol_log[protocol_name]
+
+    def find_vanished(self):
+        for protocol in self.last_state:
+            if protocol not in self.touched:
+                # Protocol has vanished. Schedule an alert (that will also remove the protocol from our watch).
+                self.last_state[protocol] = 'vanished'
+                self.alert_time[protocol] = datetime.now() + NOTIFICATION_DELAY
+
     def alert_for_changes(self):
         now_x = {}
         body = []
-
-        for protocol in self.last_state:
-            if protocol not in self.touched:
-                # Protocol has vanished. Schedule an alert.
-                self.last_state[protocol] = 'vanished'
-                del self.protocol_log[protocol]
-                self.alert_time[protocol] = datetime.now() + NOTIFICATION_DELAY
 
         for protocol in self.alert_time:
             if self.alert_time[protocol] and self.alert_time[protocol] <= datetime.now():
@@ -112,6 +119,8 @@ class ProtocolHandler:
 
                 if state == 'vanished':
                     body += ['Protocol %s has vanished.' % protocol]
+                    self.purge_protocol(protocol)
+
                 else:
                     proto = self.protocol_log[protocol]
                     body += ['%-15s%-15s%-15s%-15s%-15s'
