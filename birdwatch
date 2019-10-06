@@ -96,6 +96,14 @@ class ProtocolHandler:
         for protocol in self.last_state:
             if self.last_state[protocol] != 'vanished' and protocol not in self.touched:
                 # Protocol has vanished. Schedule an alert (that will also remove the protocol from our watch).
+                print(
+                    '%s: Protocol %s has changed from %s to %s' % (
+                        self.socket_alias,
+                        protocol,
+                        self.last_state[protocol],
+                        'vanished'
+                    )
+                )
                 self.last_state[protocol] = 'vanished'
                 self.alert_time[protocol] = datetime.now() + NOTIFICATION_DELAY
 
@@ -116,12 +124,14 @@ class ProtocolHandler:
 
                 self.last_alert_state[protocol] = state
 
+                proto = self.protocol_log[protocol]
+
                 if state == 'vanished':
-                    body += ['Protocol %s has vanished.' % protocol]
+                    body += ['%-15s%-15s%-15s%-15s%-15s'
+                             % (proto.name, proto.type, 'vanished', '', '')]
                     self.purge_protocol(protocol)
 
                 else:
-                    proto = self.protocol_log[protocol]
                     body += ['%-15s%-15s%-15s%-15s%-15s'
                              % (proto.name, proto.type, proto.state, proto.since, proto.info)]
 
