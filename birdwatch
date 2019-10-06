@@ -48,7 +48,7 @@ class ProtocolHandler:
         if type(protocol) is not Protocol:
             raise TypeError
 
-        if protocol.type not in self.interesting_protocols:
+        if protocol.type.lower() not in self.interesting_protocols:
             return
 
         self.touched.append(protocol.name)
@@ -250,7 +250,7 @@ def main():
     interesting_protocols = []
     for protocol in config['protocols']:
         if config['protocols'][protocol] == "1":
-            interesting_protocols.append(protocol)
+            interesting_protocols.append(protocol.lower())
     print('Considering protocol types: %s' % (', '.join(interesting_protocols)))
 
     notification_delay = timedelta(seconds=config.getint('birdwatch', 'notification_delay', fallback=120))
