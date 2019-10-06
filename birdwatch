@@ -40,11 +40,11 @@ class Protocol:
 class ProtocolHandler:
     def __init__(self, socket_alias):
         self.socket_alias = socket_alias
-        self.last_state = {}
-        self.last_alert_state = {}
-        self.alert_time = {}
-        self.protocol_log = {}
-        self.touched = []
+        self.last_state = {}  # protocol state after last update
+        self.last_alert_state = {}  # protocol state that was sent in the last alert
+        self.alert_time = {}  # time when an alert should be sent for this protocol
+        self.protocol_log = {}  # storage for actual Protocol object (to obtain detailed info later)
+        self.touched = []  # protocols that were present in last update
 
     def update(self, protocols):
         self.touched = []
