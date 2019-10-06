@@ -90,7 +90,6 @@ class ProtocolHandler:
     def purge_protocol(self, protocol_name):
         del self.last_state[protocol_name]
         del self.last_alert_state[protocol_name]
-        del self.alert_time[protocol_name]
         del self.protocol_log[protocol_name]
 
     def find_vanished(self):
