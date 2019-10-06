@@ -12,10 +12,6 @@ import signal
 from email.mime.text import MIMEText
 from subprocess import Popen, PIPE
 
-SOCKETS = {
-    'IPv4': '/var/run/bird/bird.ctl',
-    'IPv6': '/var/run/bird/bird6.ctl',
-}
 NOTIFICATION_DELAY = timedelta(seconds=120)
 INTERESTING_PROTOCOLS = ['BGP']
 CHECK_INTERVAL = 20
@@ -244,9 +240,10 @@ def main():
 
     killer = GracefulKiller()
 
-    for sock in SOCKETS.items():
-        print(sock)
-        t = threading.Thread(target=watch_socket, args=(sock[1], sock[0], killer))
+    for sock_name in config['sockets']:
+        sock_path = config['sockets'][sock_name]
+        print('Watching socket "%s" at "%s"' % (sock_name, sock_path))
+        t = threading.Thread(target=watch_socket, args=(sock_path, sock_name, killer))
         t.daemon = False
         t.start()
 
