@@ -94,7 +94,7 @@ class ProtocolHandler:
 
     def find_vanished(self):
         for protocol in self.last_state:
-            if protocol not in self.touched:
+            if self.last_state[protocol] != 'vanished' and protocol not in self.touched:
                 # Protocol has vanished. Schedule an alert (that will also remove the protocol from our watch).
                 self.last_state[protocol] = 'vanished'
                 self.alert_time[protocol] = datetime.now() + NOTIFICATION_DELAY
