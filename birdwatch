@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import argparse
+import configparser
 from datetime import datetime, timedelta
 import socket
 import time
@@ -228,6 +230,18 @@ class GracefulKiller:
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Simple protocol state monitoring for the Bird Internet Routing Daemon')
+    parser.add_argument('-c', '--configfile',
+                        type=argparse.FileType('r'),
+                        default='./birdwatch.ini',
+                        help='Path to a Birdwatch config file. Defaults to ./birdwatch.ini.')
+
+    args = parser.parse_args()
+
+    config = configparser.ConfigParser()
+    config.optionxform = lambda option: option  # do not lowercase option names
+    config.read_file(args.configfile)
+
     killer = GracefulKiller()
 
     for sock in SOCKETS.items():
