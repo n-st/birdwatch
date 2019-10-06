@@ -12,8 +12,6 @@ import signal
 from email.mime.text import MIMEText
 from subprocess import Popen, PIPE
 
-CHECK_INTERVAL = 20
-
 
 class Protocol:
     def __init__(self, proto_name, proto_type, proto_table, proto_state, proto_since, proto_info):
@@ -175,7 +173,7 @@ class Mailer:
         p.communicate(msg.as_string().encode('utf-8'))
 
 
-def watch_socket(socket_path, socket_alias, interesting_protocols, notification_delay, mailer, sigterm_handler):
+def watch_socket(socket_path, socket_alias, interesting_protocols, check_interval, notification_delay, mailer, sigterm_handler):
     try:
         handler = ProtocolHandler(socket_alias, interesting_protocols, notification_delay, mailer)
 
@@ -210,7 +208,7 @@ def watch_socket(socket_path, socket_alias, interesting_protocols, notification_
 
             handler.update(protocols)
 
-            for i in range(CHECK_INTERVAL):
+            for i in range(check_interval):
                 if sigterm_handler.kill_now:
                     return
                 time.sleep(1)
@@ -256,6 +254,7 @@ def main():
     print('Considering protocol types: %s' % (', '.join(interesting_protocols)))
 
     notification_delay = timedelta(seconds=config.getint('birdwatch', 'notification_delay', fallback=120))
+    check_interval = config.getint('birdwatch', 'check_interval', fallback=20)
 
     system_hostname = socket.gethostname()
     from_addr = config.get(
@@ -278,7 +277,7 @@ def main():
         print('Watching socket "%s" at "%s"' % (sock_name, sock_path))
         t = threading.Thread(
             target=watch_socket,
-            args=(sock_path, sock_name, interesting_protocols, notification_delay, mailer, killer)
+            args=(sock_path, sock_name, interesting_protocols, check_interval, notification_delay, mailer, killer)
         )
         t.daemon = False
         t.start()
