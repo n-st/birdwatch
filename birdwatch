@@ -13,7 +13,6 @@ from email.mime.text import MIMEText
 from subprocess import Popen, PIPE
 
 NOTIFICATION_DELAY = timedelta(seconds=120)
-INTERESTING_PROTOCOLS = ['BGP']
 CHECK_INTERVAL = 20
 HOSTNAME = socket.gethostname()
 MAIL_FROM = 'birdwatch@' + socket.getfqdn()
@@ -34,8 +33,9 @@ class Protocol:
 
 
 class ProtocolHandler:
-    def __init__(self, socket_alias):
+    def __init__(self, socket_alias, interesting_protocols):
         self.socket_alias = socket_alias
+        self.interesting_protocols = interesting_protocols
         self.last_state = {}  # protocol state after last update
         self.last_alert_state = {}  # protocol state that was sent in the last alert
         self.alert_time = {}  # time when an alert should be sent for this protocol
@@ -52,7 +52,7 @@ class ProtocolHandler:
         if type(protocol) is not Protocol:
             raise TypeError
 
-        if protocol.type not in INTERESTING_PROTOCOLS:
+        if protocol.type not in self.interesting_protocols:
             return
 
         self.touched.append(protocol.name)
@@ -167,9 +167,9 @@ def send_mail(subject, body):
     p.communicate(msg.as_string().encode('utf-8'))
 
 
-def watch_socket(socket_path, socket_alias, sigterm_handler):
+def watch_socket(socket_path, socket_alias, interesting_protocols, sigterm_handler):
     try:
-        handler = ProtocolHandler(socket_alias)
+        handler = ProtocolHandler(socket_alias, interesting_protocols)
 
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client.connect(socket_path)
@@ -240,10 +240,16 @@ def main():
 
     killer = GracefulKiller()
 
+    interesting_protocols = []
+    for protocol in config['protocols']:
+        if config['protocols'][protocol] == "1":
+            interesting_protocols.append(protocol)
+    print('Considering protocol types: %s' % (', '.join(interesting_protocols)))
+
     for sock_name in config['sockets']:
         sock_path = config['sockets'][sock_name]
         print('Watching socket "%s" at "%s"' % (sock_name, sock_path))
-        t = threading.Thread(target=watch_socket, args=(sock_path, sock_name, killer))
+        t = threading.Thread(target=watch_socket, args=(sock_path, sock_name, interesting_protocols, killer))
         t.daemon = False
         t.start()
 
