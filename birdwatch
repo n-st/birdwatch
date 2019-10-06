@@ -198,7 +198,7 @@ def watch_socket(socket_path, socket_alias, interesting_protocols, check_interva
 
             code = ''
             for line in response:
-                parts = re.split('\s+', line)
+                parts = re.split(r'\s+', line)
                 if parts[0]:
                     code = parts[0]
                 if code == '1002':
