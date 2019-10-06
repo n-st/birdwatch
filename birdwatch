@@ -13,7 +13,6 @@ from email.mime.text import MIMEText
 from subprocess import Popen, PIPE
 
 CHECK_INTERVAL = 20
-HOSTNAME = socket.gethostname()
 
 
 class Protocol:
@@ -139,12 +138,8 @@ class ProtocolHandler:
             body = ['%-15s%-15s%-15s%-15s%-15s'
                     % ('NAME', 'PROTOCOL', 'STATE', 'SINCE', 'INFO')] \
                    + body
-            subject = 'Birdwatch %s %s: %s' % (
-                HOSTNAME,
-                self.socket_alias,
-                ', '.join(['%d %s' % (now_x[x], x) for x in now_x])
-            )
-            self.mailer.send_mail(subject, '\n'.join(body))
+            details = ', '.join(['%d %s' % (now_x[x], x) for x in now_x])
+            self.mailer.send_notification_mail(self.socket_alias, details, '\n'.join(body))
 
 
 def recvline(sock):
@@ -157,9 +152,18 @@ def recvline(sock):
 
 
 class Mailer:
-    def __init__(self, from_addr, to_addr):
+    def __init__(self, hostname, from_addr, to_addr):
+        self.hostname = hostname
         self.from_addr = from_addr
         self.to_addr = to_addr
+
+    def send_notification_mail(self, socket_alias, details, body):
+        subject = 'Birdwatch %s %s: %s' % (
+            self.hostname,
+            socket_alias,
+            details
+        )
+        self.send_mail(subject, body)
 
     def send_mail(self, subject, body):
         msg = MIMEText(body)
@@ -213,8 +217,9 @@ def watch_socket(socket_path, socket_alias, interesting_protocols, notification_
 
     except Exception as e:
         import traceback
-        subject = 'Birdwatch %s %s: %s' % (HOSTNAME, socket_alias, 'error')
-        mailer.send_mail(subject, 'Lost connection to bird:\n%s' % traceback.format_exc())
+        details = 'error'
+        body = 'Lost connection to bird:\n%s' % traceback.format_exc()
+        mailer.send_notification_mail(socket_alias, details, body)
 
 
 class GracefulKiller:
@@ -266,7 +271,7 @@ def main():
         fallback='$HOSTNAME') \
         .replace('$HOSTNAME', system_hostname)
 
-    mailer = Mailer(from_addr, to_addr)
+    mailer = Mailer(hostname, from_addr, to_addr)
 
     for sock_name in config['sockets']:
         sock_path = config['sockets'][sock_name]
