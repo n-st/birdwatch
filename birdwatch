@@ -46,8 +46,10 @@ class ProtocolHandler:
         self.protocol_log = {}
         self.touched = []
 
-    def new_session(self):
+    def update(self, protocols):
         self.touched = []
+        self.inject_protocols(protocols)
+        self.alert_for_changes()
 
     def inject_protocol(self, protocol):
         if type(protocol) is not Protocol:
@@ -84,7 +86,7 @@ class ProtocolHandler:
         for protocol in protocols:
             self.inject_protocol(protocol)
 
-    def get_changes(self):
+    def alert_for_changes(self):
         now_x = {}
         body = []
 
@@ -184,9 +186,7 @@ def watch_socket(socket_path, socket_alias, sigterm_handler):
                     proto = Protocol(proto_name, proto_type, proto_table, proto_state, proto_since, proto_info)
                     protocols.append(proto)
 
-            handler.new_session()
-            handler.inject_protocols(protocols)
-            handler.get_changes()
+            handler.update(protocols)
 
             for i in range(CHECK_INTERVAL):
                 if sigterm_handler.kill_now:
