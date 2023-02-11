@@ -1,0 +1,2 @@
+# birdwatch currently relies only on the Python standard library; no
+# additional packages are required
